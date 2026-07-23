@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>좌표로 그림 그리기</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    :root {
+      --background: #eef3f8;
+      --panel: #ffffff;
+      --border: #d8e1eb;
+      --text: #1f2937;
+      --muted: #64748b;
+      --blue: #2563eb;
+      --green: #16a34a;
+      --gray: #6b7280;
+      --red: #dc2626;
+      --purple: #7c3aed;
+      --navy: #334155;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 20px;
+      background: var(--background);
+      color: var(--text);
+      font-family: Arial, "Noto Sans KR", sans-serif;
+    }
+
+    .app {
+      width: min(1320px, 100%);
+      margin: 0 auto;
+      overflow: hidden;
+      background: var(--panel);
+      border-radius: 18px;
+      box-shadow: 0 14px 42px rgba(15, 23, 42, 0.12);
+    }
+
+    .header {
+      padding: 24px 28px;
+      color: #fff;
+      background: linear-gradient(135deg, #1e3a8a, #2563eb);
+    }
+
+    .header h1 {
+      margin: 0 0 8px;
+      font-size: clamp(26px, 3vw, 38px);
+    }
+
+    .header p {
+      margin: 0;
+      color: #dbeafe;
+      line-height: 1.6;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 350px;
+      gap: 22px;
+      padding: 22px;
+    }
+
+    .board-panel,
+    .side-panel {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #fff;
+    }
+
+    .board-panel {
+      min-width: 0;
+      padding: 14px;
+    }
+
+    .canvas-wrap {
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+      width: 100%;
+      min-height: 520px;
+      max-height: 78vh;
+      overflow: auto;
+      padding: 12px;
+      border-radius: 10px;
+      background: #f8fafc;
+    }
+
+    canvas {
+      display: block;
+      flex: 0 0 auto;
+      background: #fff;
+      border: 1px solid #cbd5e1;
+    }
+
+    .side-panel {
+      align-self: start;
+      padding: 18px;
+    }
+
+    .section {
+      padding-bottom: 18px;
+      margin-bottom: 18px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .section:last-child {
+      padding-bottom: 0;
+      margin-bottom: 0;
+      border-bottom: none;
+    }
+
+    .section h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+
+    .grid-form {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    input[type="number"],
+    input[type="text"] {
+      width: 100%;
+      padding: 11px 12px;
+      border: 1px solid #b8c2cf;
+      border-radius: 9px;
+      font-size: 15px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+    }
+
+    .button-stack {
+      display: grid;
+      gap: 9px;
+      margin-top: 12px;
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+      margin-top: 12px;
+    }
+
+    button {
+      min-height: 42px;
+      padding: 10px 12px;
+      border: none;
+      border-radius: 9px;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+
+    .btn-blue { background: var(--blue); }
+    .btn-green { background: var(--green); }
+    .btn-gray { background: var(--gray); }
+    .btn-red { background: var(--red); }
+    .btn-purple { background: var(--purple); }
+    .btn-navy { background: var(--navy); }
+
+    .message {
+      min-height: 48px;
+      padding: 12px;
+      border-radius: 9px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .message.success {
+      background: #ecfdf5;
+      color: #047857;
+    }
+
+    .message.error {
+      background: #fef2f2;
+      color: #b91c1c;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .checkbox-row input {
+      width: 18px;
+      height: 18px;
+    }
+
+    .point-list {
+      max-height: 250px;
+      margin: 0;
+      padding-left: 28px;
+      overflow-y: auto;
+      line-height: 1.8;
+    }
+
+    .empty-list,
+    .help {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .empty-list { margin: 0; }
+    .help { margin: 8px 0 0; }
+
+    @media (max-width: 920px) {
+      body { padding: 10px; }
+
+      .layout {
+        grid-template-columns: 1fr;
+        gap: 14px;
+        padding: 14px;
+      }
+
+      .canvas-wrap {
+        min-height: 420px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .grid-form,
+      .button-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .header {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <header class="header">
+      <h1>좌표로 그림 그리기</h1>
+      <p>좌표평면을 만든 뒤 점을 순서대로 입력하여 선분 그림을 완성해 보세요.</p>
+    </header>
+
+    <div class="layout">
+      <section class="board-panel">
+        <div id="canvasWrap" class="canvas-wrap">
+          <canvas id="drawingCanvas" aria-label="좌표 그림 그리기 좌표평면"></canvas>
+        </div>
+      </section>
+
+      <aside class="side-panel">
+        <section class="section">
+          <h2>1. 좌표 범위 설정</h2>
+
+          <div class="grid-form">
+            <div class="field">
+              <label for="xMin">x축 최솟값</label>
+              <input id="xMin" type="number" step="1" value="-10" />
+            </div>
+            <div class="field">
+              <label for="xMax">x축 최댓값</label>
+              <input id="xMax" type="number" step="1" value="10" />
+            </div>
+            <div class="field">
+              <label for="yMin">y축 최솟값</label>
+              <input id="yMin" type="number" step="1" value="-10" />
+            </div>
+            <div class="field">
+              <label for="yMax">y축 최댓값</label>
+              <input id="yMax" type="number" step="1" value="10" />
+            </div>
+          </div>
+
+          <div class="button-stack">
+            <button id="createButton" class="btn-blue" type="button">
+              좌표평면 생성
+            </button>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>2. 점 좌표 입력</h2>
+
+          <div class="field">
+            <label for="pointInput">점의 좌표</label>
+            <input
+              id="pointInput"
+              type="text"
+              autocomplete="off"
+              placeholder="예: (3,5)"
+            />
+          </div>
+
+          <p class="help">정수와 소수 좌표를 모두 사용할 수 있습니다.</p>
+
+          <div class="button-stack">
+            <button id="addButton" class="btn-green" type="button">
+              점 추가
+            </button>
+          </div>
+
+          <div class="checkbox-row">
+            <input id="labelToggle" type="checkbox" checked />
+            <label for="labelToggle">좌표 라벨 표시</label>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>3. 편집 및 저장</h2>
+
+          <div class="button-grid">
+            <button id="undoButton" class="btn-gray" type="button">
+              마지막 점 취소
+            </button>
+            <button id="closeButton" class="btn-navy" type="button">
+              도형 닫기
+            </button>
+            <button id="clearButton" class="btn-red" type="button">
+              전체 지우기
+            </button>
+            <button id="saveButton" class="btn-purple" type="button">
+              이미지 저장
+            </button>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>상태</h2>
+          <div id="message" class="message" role="status" aria-live="polite">
+            좌표평면을 생성해 주세요.
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>입력한 점 목록</h2>
+          <ol id="pointList" class="point-list"></ol>
+          <p id="emptyList" class="empty-list">아직 입력한 점이 없습니다.</p>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    (() => {
+      const GRID_STEP = 1;
+      const MIN_UNIT_PIXELS = 24;
+      const MAX_UNIT_PIXELS = 42;
+      const MAX_RANGE_SIZE = 100;
+      const PADDING_X = 82;
+      const PADDING_Y = 72;
+
+      const canvas = document.getElementById("drawingCanvas");
+      const ctx = canvas.getContext("2d");
+      const canvasWrap = document.getElementById("canvasWrap");
+
+      const xMinInput = document.getElementById("xMin");
+      const xMaxInput = document.getElementById("xMax");
+      const yMinInput = document.getElementById("yMin");
+      const yMaxInput = document.getElementById("yMax");
+      const pointInput = document.getElementById("pointInput");
+
+      const createButton = document.getElementById("createButton");
+      const addButton = document.getElementById("addButton");
+      const undoButton = document.getElementById("undoButton");
+      const clearButton = document.getElementById("clearButton");
+      const closeButton = document.getElementById("closeButton");
+      const saveButton = document.getElementById("saveButton");
+      const labelToggle = document.getElementById("labelToggle");
+
+      const messageBox = document.getElementById("message");
+      const pointList = document.getElementById("pointList");
+      const emptyList = document.getElementById("emptyList");
+
+      const state = {
+        isCreated: false,
+        range: {
+          xMin: -10,
+          xMax: 10,
+          yMin: -10,
+          yMax: 10
+        },
+        points: [],
+        isClosed: false,
+        showLabels: true,
+        cssWidth: 0,
+        cssHeight: 0,
+        plot: {
+          left: PADDING_X / 2,
+          top: PADDING_Y / 2,
+          width: 0,
+          height: 0,
+          unit: 30
+        }
+      };
+
+      /**
+       * 네 개의 범위 입력값을 검사합니다.
+       */
+      function validateRange() {
+        const raw = [
+          xMinInput.value.trim(),
+          xMaxInput.value.trim(),
+          yMinInput.value.trim(),
+          yMaxInput.value.trim()
+        ];
+
+        if (raw.some(value => value === "")) {
+          return { valid: false, message: "모든 좌표 범위 값을 입력하세요." };
+        }
+
+        const values = raw.map(Number);
+
+        if (values.some(value => !Number.isFinite(value))) {
+          return { valid: false, message: "좌표 범위에는 숫자만 입력하세요." };
+        }
+
+        if (values.some(value => !Number.isInteger(value))) {
+          return { valid: false, message: "좌표 범위는 정수로 입력하세요." };
+        }
+
+        const [xMin, xMax, yMin, yMax] = values;
+
+        if (xMin >= xMax || yMin >= yMax) {
+          return {
+            valid: false,
+            message: "최솟값은 최댓값보다 작아야 합니다."
+          };
+        }
+
+        if (
+          xMax - xMin > MAX_RANGE_SIZE ||
+          yMax - yMin > MAX_RANGE_SIZE
+        ) {
+          return {
+            valid: false,
+            message: "각 축의 범위 차이는 최대 100까지 가능합니다."
+          };
+        }
+
+        return {
+          valid: true,
+          range: { xMin, xMax, yMin, yMax }
+        };
+      }
+
+      /**
+       * 입력한 범위로 새 좌표평면을 생성하고 기존 점을 초기화합니다.
+       */
+      function createCoordinatePlane() {
+        const result = validateRange();
+
+        if (!result.valid) {
+          showMessage(result.message, "error");
+          return;
+        }
+
+        state.range = result.range;
+        state.points = [];
+        state.isClosed = false;
+        state.isCreated = true;
+
+        resizeCanvas();
+        updatePointList();
+        updateButtons();
+        showMessage("좌표평면이 생성되었습니다.", "success");
+        pointInput.focus();
+      }
+
+      /**
+       * 좌표 한 칸의 가로와 세로 크기가 같도록 캔버스를 조절합니다.
+       * 범위가 넓으면 캔버스를 줄이지 않고 스크롤 영역을 사용합니다.
+       */
+      function resizeCanvas() {
+        if (!state.isCreated) {
+          const width = Math.max(320, canvasWrap.clientWidth - 24);
+          const height = Math.min(560, Math.max(380, width * 0.72));
+          configureCanvas(width, height);
+          drawEmptyCanvas();
+          return;
+        }
+
+        const xRange = state.range.xMax - state.range.xMin;
+        const yRange = state.range.yMax - state.range.yMin;
+        const availableWidth = Math.max(300, canvasWrap.clientWidth - 24);
+        const availableHeight = Math.max(360, window.innerHeight * 0.68);
+
+        const fittingUnit = Math.min(
+          (availableWidth - PADDING_X) / xRange,
+          (availableHeight - PADDING_Y) / yRange
+        );
+
+        const unit = Math.max(
+          MIN_UNIT_PIXELS,
+          Math.min(MAX_UNIT_PIXELS, fittingUnit)
+        );
+
+        const plotWidth = xRange * unit;
+        const plotHeight = yRange * unit;
+        const width = Math.ceil(plotWidth + PADDING_X);
+        const height = Math.ceil(plotHeight + PADDING_Y);
+
+        configureCanvas(width, height);
+
+        state.plot = {
+          left: PADDING_X / 2,
+          top: PADDING_Y / 2,
+          width: plotWidth,
+          height: plotHeight,
+          unit
+        };
+
+        drawBoard();
+      }
+
+      /**
+       * 고해상도 화면에서도 선과 문자가 선명하도록 DPR을 반영합니다.
+       */
+      function configureCanvas(cssWidth, cssHeight) {
+        const dpr = window.devicePixelRatio || 1;
+
+        state.cssWidth = cssWidth;
+        state.cssHeight = cssHeight;
+
+        canvas.style.width = `${cssWidth}px`;
+        canvas.style.height = `${cssHeight}px`;
+        canvas.width = Math.round(cssWidth * dpr);
+        canvas.height = Math.round(cssHeight * dpr);
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function drawEmptyCanvas() {
+        ctx.clearRect(0, 0, state.cssWidth, state.cssHeight);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, state.cssWidth, state.cssHeight);
+
+        ctx.fillStyle = "#64748b";
+        ctx.font = "16px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(
+          "오른쪽에서 범위를 입력하고 좌표평면을 생성하세요.",
+          state.cssWidth / 2,
+          state.cssHeight / 2
+        );
+      }
+
+      /**
+       * 수학 좌표를 캔버스 좌표로 변환합니다.
+       */
+      function coordinateToCanvas(x, y) {
+        return {
+          x: state.plot.left + (x - state.range.xMin) * state.plot.unit,
+          y: state.plot.top + (state.range.yMax - y) * state.plot.unit
+        };
+      }
+
+      /**
+       * 캔버스 좌표를 수학 좌표로 역변환합니다.
+       */
+      function canvasToCoordinate(canvasX, canvasY) {
+        return {
+          x:
+            state.range.xMin +
+            (canvasX - state.plot.left) / state.plot.unit,
+          y:
+            state.range.yMax -
+            (canvasY - state.plot.top) / state.plot.unit
+        };
+      }
+
+      /**
+       * 좌표평면, 선, 점, 라벨을 최신 상태로 모두 다시 그립니다.
+       */
+      function drawBoard() {
+        if (!state.isCreated) {
+          drawEmptyCanvas();
+          return;
+        }
+
+        ctx.clearRect(0, 0, state.cssWidth, state.cssHeight);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, state.cssWidth, state.cssHeight);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(
+          state.plot.left,
+          state.plot.top,
+          state.plot.width,
+          state.plot.height
+        );
+        ctx.clip();
+
+        drawGrid();
+        drawAxes();
+        drawLines();
+        drawPoints(false);
+
+        ctx.restore();
+
+        drawAxisLabels();
+        drawPointLabels();
+      }
+
+      /**
+       * 모든 정수 좌표에 1단위 간격의 격자선을 그립니다.
+       * 범위나 화면 크기에 따라 간격을 변경하거나 생략하지 않습니다.
+       */
+      function drawGrid() {
+        ctx.strokeStyle = "#dce3ea";
+        ctx.lineWidth = 1;
+
+        for (
+          let x = Math.ceil(state.range.xMin);
+          x <= Math.floor(state.range.xMax);
+          x += GRID_STEP
+        ) {
+          const p = coordinateToCanvas(x, state.range.yMin);
+          ctx.beginPath();
+          ctx.moveTo(p.x, state.plot.top);
+          ctx.lineTo(p.x, state.plot.top + state.plot.height);
+          ctx.stroke();
+        }
+
+        for (
+          let y = Math.ceil(state.range.yMin);
+          y <= Math.floor(state.range.yMax);
+          y += GRID_STEP
+        ) {
+          const p = coordinateToCanvas(state.range.xMin, y);
+          ctx.beginPath();
+          ctx.moveTo(state.plot.left, p.y);
+          ctx.lineTo(state.plot.left + state.plot.width, p.y);
+          ctx.stroke();
+        }
+      }
+
+      /**
+       * 0이 각 축 범위에 포함되는 경우에만 x축 또는 y축을 그립니다.
+       */
+      function drawAxes() {
+        const right = state.plot.left + state.plot.width;
+        const bottom = state.plot.top + state.plot.height;
+        const arrowSize = 9;
+
+        ctx.strokeStyle = "#000000";
+        ctx.fillStyle = "#000000";
+        ctx.lineWidth = 2.5;
+
+        if (state.range.yMin <= 0 && state.range.yMax >= 0) {
+          const axisY = coordinateToCanvas(state.range.xMin, 0).y;
+
+          ctx.beginPath();
+          ctx.moveTo(state.plot.left, axisY);
+          ctx.lineTo(right, axisY);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(right, axisY);
+          ctx.lineTo(right - arrowSize, axisY - arrowSize * 0.55);
+          ctx.lineTo(right - arrowSize, axisY + arrowSize * 0.55);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        if (state.range.xMin <= 0 && state.range.xMax >= 0) {
+          const axisX = coordinateToCanvas(0, state.range.yMin).x;
+
+          ctx.beginPath();
+          ctx.moveTo(axisX, bottom);
+          ctx.lineTo(axisX, state.plot.top);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(axisX, state.plot.top);
+          ctx.lineTo(axisX - arrowSize * 0.55, state.plot.top + arrowSize);
+          ctx.lineTo(axisX + arrowSize * 0.55, state.plot.top + arrowSize);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+
+      /**
+       * 모든 정수 눈금 숫자를 1단위 간격으로 표시합니다.
+       */
+      function drawAxisLabels() {
+        const right = state.plot.left + state.plot.width;
+        const bottom = state.plot.top + state.plot.height;
+        const hasXAxis =
+          state.range.yMin <= 0 && state.range.yMax >= 0;
+        const hasYAxis =
+          state.range.xMin <= 0 && state.range.xMax >= 0;
+
+        const xLabelY = hasXAxis
+          ? coordinateToCanvas(state.range.xMin, 0).y
+          : bottom;
+
+        const yLabelX = hasYAxis
+          ? coordinateToCanvas(0, state.range.yMin).x
+          : state.plot.left;
+
+        const fontSize = Math.max(
+          8,
+          Math.min(12, state.plot.unit * 0.38)
+        );
+
+        ctx.fillStyle = "#111827";
+        ctx.font = `${fontSize}px Arial`;
+
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+
+        for (
+          let x = Math.ceil(state.range.xMin);
+          x <= Math.floor(state.range.xMax);
+          x += GRID_STEP
+        ) {
+          if (x === 0) continue;
+
+          const p = coordinateToCanvas(x, state.range.yMin);
+          ctx.fillText(String(x), p.x, xLabelY + 7);
+        }
+
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+
+        for (
+          let y = Math.ceil(state.range.yMin);
+          y <= Math.floor(state.range.yMax);
+          y += GRID_STEP
+        ) {
+          if (y === 0) continue;
+
+          const p = coordinateToCanvas(state.range.xMin, y);
+          ctx.fillText(String(y), yLabelX - 7, p.y);
+        }
+
+        if (hasXAxis && hasYAxis) {
+          const origin = coordinateToCanvas(0, 0);
+
+          ctx.font = '15px "Times New Roman"';
+          ctx.textAlign = "right";
+          ctx.textBaseline = "top";
+          ctx.fillText("O", origin.x - 5, origin.y + 5);
+        }
+
+        ctx.font = 'italic 17px "Times New Roman"';
+        ctx.fillStyle = "#000000";
+
+        if (hasXAxis) {
+          const axisY = coordinateToCanvas(state.range.xMin, 0).y;
+          ctx.textAlign = "right";
+          ctx.textBaseline = "top";
+          ctx.fillText("x", right, axisY + 12);
+        }
+
+        if (hasYAxis) {
+          const axisX = coordinateToCanvas(0, state.range.yMin).x;
+          ctx.textAlign = "right";
+          ctx.textBaseline = "bottom";
+          ctx.fillText("y", axisX - 7, state.plot.top);
+        }
+      }
+
+      /**
+       * 입력한 점을 순서대로 파란 선분으로 연결합니다.
+       */
+      function drawLines() {
+        if (state.points.length < 2) return;
+
+        const first = coordinateToCanvas(
+          state.points[0].x,
+          state.points[0].y
+        );
+
+        ctx.strokeStyle = "#2563eb";
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(first.x, first.y);
+
+        for (let index = 1; index < state.points.length; index++) {
+          const p = coordinateToCanvas(
+            state.points[index].x,
+            state.points[index].y
+          );
+          ctx.lineTo(p.x, p.y);
+        }
+
+        if (state.isClosed && state.points.length >= 3) {
+          ctx.lineTo(first.x, first.y);
+        }
+
+        ctx.stroke();
+      }
+
+      /**
+       * 점을 그리고 마지막 점에만 빨간 강조 테두리를 표시합니다.
+       */
+      function drawPoints(includeLabels = true) {
+        state.points.forEach((point, index) => {
+          const p = coordinateToCanvas(point.x, point.y);
+          const isLast = index === state.points.length - 1;
+
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 5.5, 0, Math.PI * 2);
+          ctx.fillStyle = "#1e3a8a";
+          ctx.fill();
+
+          if (isLast) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 8.5, 0, Math.PI * 2);
+            ctx.strokeStyle = "#dc2626";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+
+          if (includeLabels && state.showLabels) {
+            drawSinglePointLabel(point, p);
+          }
+        });
+      }
+
+      /**
+       * clipping 영역 밖에서도 라벨이 잘리지 않도록 라벨을 별도로 그립니다.
+       */
+      function drawPointLabels() {
+        if (!state.showLabels) return;
+
+        state.points.forEach(point => {
+          const p = coordinateToCanvas(point.x, point.y);
+          drawSinglePointLabel(point, p);
+        });
+      }
+
+      function drawSinglePointLabel(point, canvasPoint) {
+        ctx.font = "13px Arial";
+        ctx.fillStyle = "#111827";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "bottom";
+        ctx.fillText(
+          `${point.name}(${formatNumber(point.x)}, ${formatNumber(point.y)})`,
+          canvasPoint.x + 8,
+          canvasPoint.y - 7
+        );
+      }
+
+      /**
+       * "(x,y)" 입력을 검사하고 숫자 좌표로 변환합니다.
+       */
+      function parseCoordinate(value) {
+        const pattern =
+          /^\(\s*(-?(?:\d+(?:\.\d*)?|\.\d+))\s*,\s*(-?(?:\d+(?:\.\d*)?|\.\d+))\s*\)$/;
+
+        const match = value.trim().match(pattern);
+
+        if (!match) {
+          return {
+            valid: false,
+            message: "좌표를 (x,y) 형태로 입력하세요."
+          };
+        }
+
+        const x = Number(match[1]);
+        const y = Number(match[2]);
+
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          return {
+            valid: false,
+            message: "좌표를 (x,y) 형태로 입력하세요."
+          };
+        }
+
+        return { valid: true, x, y };
+      }
+
+      /**
+       * 점 이름을 A~Z, A1~Z1, A2~ 형태로 생성합니다.
+       */
+      function getPointName(index) {
+        const letter = String.fromCharCode(65 + (index % 26));
+        const cycle = Math.floor(index / 26);
+
+        return cycle === 0 ? letter : `${letter}${cycle}`;
+      }
+
+      /**
+       * 입력값을 검사하고 점 배열에 새 점을 추가합니다.
+       */
+      function addPoint() {
+        if (!state.isCreated) {
+          showMessage("먼저 좌표평면을 생성하세요.", "error");
+          return;
+        }
+
+        const result = parseCoordinate(pointInput.value);
+
+        if (!result.valid) {
+          showMessage(result.message, "error");
+          return;
+        }
+
+        const { x, y } = result;
+        const { xMin, xMax, yMin, yMax } = state.range;
+
+        if (x < xMin || x > xMax || y < yMin || y > yMax) {
+          showMessage(
+            "입력한 점이 현재 좌표평면의 범위를 벗어났습니다.",
+            "error"
+          );
+          return;
+        }
+
+        const name = getPointName(state.points.length);
+
+        state.points.push({ x, y, name });
+        state.isClosed = false;
+
+        drawBoard();
+        updatePointList();
+        updateButtons();
+
+        showMessage(
+          `점 ${name}(${formatNumber(x)}, ${formatNumber(y)})를 추가했습니다.`,
+          "success"
+        );
+
+        pointInput.value = "";
+        pointInput.focus();
+      }
+
+      /**
+       * 마지막 점과 해당 점에 연결된 마지막 선분을 삭제합니다.
+       */
+      function undoLastPoint() {
+        if (!state.points.length) return;
+
+        state.points.pop();
+        state.isClosed = false;
+
+        drawBoard();
+        updatePointList();
+        updateButtons();
+        showMessage("마지막 점을 삭제했습니다.", "success");
+        pointInput.focus();
+      }
+
+      /**
+       * 확인 후 모든 점과 선을 삭제하고 좌표평면은 유지합니다.
+       */
+      function clearAllPoints() {
+        if (!state.points.length) return;
+
+        const confirmed = window.confirm(
+          "입력한 모든 점과 선을 삭제하시겠습니까?"
+        );
+
+        if (!confirmed) return;
+
+        state.points = [];
+        state.isClosed = false;
+
+        drawBoard();
+        updatePointList();
+        updateButtons();
+        showMessage("모든 점과 선을 삭제했습니다.", "success");
+        pointInput.focus();
+      }
+
+      /**
+       * 점이 세 개 이상이면 마지막 점과 첫 번째 점을 연결합니다.
+       */
+      function closeShape() {
+        if (state.points.length < 3 || state.isClosed) return;
+
+        state.isClosed = true;
+        drawBoard();
+        updateButtons();
+        showMessage("도형을 닫았습니다.", "success");
+      }
+
+      /**
+       * 입력 순서대로 점 목록을 갱신합니다.
+       */
+      function updatePointList() {
+        pointList.innerHTML = "";
+        pointList.hidden = state.points.length === 0;
+        emptyList.hidden = state.points.length > 0;
+
+        state.points.forEach(point => {
+          const item = document.createElement("li");
+          item.textContent =
+            `${point.name}(${formatNumber(point.x)}, ${formatNumber(point.y)})`;
+          pointList.appendChild(item);
+        });
+      }
+
+      /**
+       * 현재 상태에 따라 각 버튼의 활성화 여부를 변경합니다.
+       */
+      function updateButtons() {
+        addButton.disabled = !state.isCreated;
+        saveButton.disabled = !state.isCreated;
+        undoButton.disabled = state.points.length === 0;
+        clearButton.disabled = state.points.length === 0;
+        closeButton.disabled =
+          !state.isCreated ||
+          state.points.length < 3 ||
+          state.isClosed;
+      }
+
+      /**
+       * 안내 또는 오류 메시지를 표시합니다.
+       */
+      function showMessage(text, type = "info") {
+        messageBox.textContent = text;
+        messageBox.className = "message";
+
+        if (type === "success") {
+          messageBox.classList.add("success");
+        } else if (type === "error") {
+          messageBox.classList.add("error");
+        }
+      }
+
+      /**
+       * 현재 캔버스 그림을 실제 PNG 파일로 다운로드합니다.
+       */
+      function saveAsImage() {
+        if (!state.isCreated) return;
+
+        drawBoard();
+
+        canvas.toBlob(blob => {
+          if (!blob) {
+            showMessage("이미지를 저장하지 못했습니다.", "error");
+            return;
+          }
+
+          const objectUrl = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+
+          link.href = objectUrl;
+          link.download = "coordinate-drawing.png";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+
+          window.setTimeout(() => {
+            URL.revokeObjectURL(objectUrl);
+          }, 1000);
+
+          showMessage(
+            "그림을 coordinate-drawing.png 파일로 저장했습니다.",
+            "success"
+          );
+        }, "image/png");
+      }
+
+      function formatNumber(value) {
+        if (Math.abs(value) < 1e-10) return "0";
+        return Number(value.toFixed(8)).toString();
+      }
+
+      createButton.addEventListener("click", createCoordinatePlane);
+      addButton.addEventListener("click", addPoint);
+      undoButton.addEventListener("click", undoLastPoint);
+      clearButton.addEventListener("click", clearAllPoints);
+      closeButton.addEventListener("click", closeShape);
+      saveButton.addEventListener("click", saveAsImage);
+
+      pointInput.addEventListener("keydown", event => {
+        if (event.key === "Enter") {
+          addPoint();
+        }
+      });
+
+      labelToggle.addEventListener("change", () => {
+        state.showLabels = labelToggle.checked;
+        drawBoard();
+      });
+
+      let resizeTimer;
+
+      window.addEventListener("resize", () => {
+        window.clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(resizeCanvas, 120);
+      });
+
+      resizeCanvas();
+      updatePointList();
+      updateButtons();
+    })();
+  </script>
+</body>
+</html>
