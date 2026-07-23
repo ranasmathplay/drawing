@@ -135,13 +135,25 @@
     }
 
     input[type="number"],
-    input[type="text"] {
+    input[type="text"],
+    input[type="color"] {
       width: 100%;
-      padding: 11px 12px;
       border: 1px solid #b8c2cf;
       border-radius: 9px;
       font-size: 15px;
       outline: none;
+    }
+
+    input[type="number"],
+    input[type="text"] {
+      padding: 11px 12px;
+    }
+
+    input[type="color"] {
+      height: 42px;
+      padding: 4px;
+      background: #fff;
+      cursor: pointer;
     }
 
     input:focus {
@@ -174,14 +186,8 @@
       transition: transform 0.15s ease, opacity 0.15s ease;
     }
 
-    button:hover:not(:disabled) {
-      transform: translateY(-1px);
-    }
-
-    button:disabled {
-      cursor: not-allowed;
-      opacity: 0.45;
-    }
+    button:hover:not(:disabled) { transform: translateY(-1px); }
+    button:disabled { cursor: not-allowed; opacity: 0.45; }
 
     .btn-blue { background: var(--blue); }
     .btn-green { background: var(--green); }
@@ -249,20 +255,13 @@
         padding: 14px;
       }
 
-      .canvas-wrap {
-        min-height: 420px;
-      }
+      .canvas-wrap { min-height: 420px; }
     }
 
     @media (max-width: 520px) {
       .grid-form,
-      .button-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .header {
-        padding: 20px;
-      }
+      .button-grid { grid-template-columns: 1fr; }
+      .header { padding: 20px; }
     }
   </style>
 </head>
@@ -271,7 +270,7 @@
   <main class="app">
     <header class="header">
       <h1>좌표로 그림 그리기</h1>
-      <p>좌표평면을 만든 뒤 점을 순서대로 입력하여 선분 그림을 완성해 보세요.</p>
+      <p>점들을 순서대로 입력하고 시작점으로 돌아오면 폐곡선의 내부가 자동으로 채워집니다.</p>
     </header>
 
     <div class="layout">
@@ -305,9 +304,7 @@
           </div>
 
           <div class="button-stack">
-            <button id="createButton" class="btn-blue" type="button">
-              좌표평면 생성
-            </button>
+            <button id="createButton" class="btn-blue" type="button">좌표평면 생성</button>
           </div>
         </section>
 
@@ -316,25 +313,25 @@
 
           <div class="field">
             <label for="pointInput">점의 좌표</label>
-            <input
-              id="pointInput"
-              type="text"
-              autocomplete="off"
-              placeholder="예: (3,5)"
-            />
+            <input id="pointInput" type="text" autocomplete="off" placeholder="예: (3,5)" />
           </div>
 
-          <p class="help">정수와 소수 좌표를 모두 사용할 수 있습니다.</p>
+          <p class="help">
+            첫 점과 같은 좌표를 마지막에 다시 입력하면 면이 자동으로 채워집니다.
+          </p>
 
           <div class="button-stack">
-            <button id="addButton" class="btn-green" type="button">
-              점 추가
-            </button>
+            <button id="addButton" class="btn-green" type="button">점 추가</button>
           </div>
 
           <div class="checkbox-row">
             <input id="labelToggle" type="checkbox" checked />
             <label for="labelToggle">좌표 라벨 표시</label>
+          </div>
+
+          <div class="field" style="margin-top:12px;">
+            <label for="fillColor">폐곡선 채우기 색상</label>
+            <input id="fillColor" type="color" value="#38bdf8" />
           </div>
         </section>
 
@@ -342,18 +339,10 @@
           <h2>3. 편집 및 저장</h2>
 
           <div class="button-grid">
-            <button id="undoButton" class="btn-gray" type="button">
-              마지막 점 취소
-            </button>
-            <button id="closeButton" class="btn-navy" type="button">
-              도형 닫기
-            </button>
-            <button id="clearButton" class="btn-red" type="button">
-              전체 지우기
-            </button>
-            <button id="saveButton" class="btn-purple" type="button">
-              이미지 저장
-            </button>
+            <button id="undoButton" class="btn-gray" type="button">마지막 점 취소</button>
+            <button id="closeButton" class="btn-navy" type="button">도형 닫기</button>
+            <button id="clearButton" class="btn-red" type="button">전체 지우기</button>
+            <button id="saveButton" class="btn-purple" type="button">이미지 저장</button>
           </div>
         </section>
 
@@ -381,6 +370,7 @@
       const MAX_RANGE_SIZE = 100;
       const PADDING_X = 82;
       const PADDING_Y = 72;
+      const EPSILON = 1e-9;
 
       const canvas = document.getElementById("drawingCanvas");
       const ctx = canvas.getContext("2d");
@@ -391,6 +381,7 @@
       const yMinInput = document.getElementById("yMin");
       const yMaxInput = document.getElementById("yMax");
       const pointInput = document.getElementById("pointInput");
+      const fillColorInput = document.getElementById("fillColor");
 
       const createButton = document.getElementById("createButton");
       const addButton = document.getElementById("addButton");
@@ -406,15 +397,11 @@
 
       const state = {
         isCreated: false,
-        range: {
-          xMin: -10,
-          xMax: 10,
-          yMin: -10,
-          yMax: 10
-        },
+        range: { xMin: -10, xMax: 10, yMin: -10, yMax: 10 },
         points: [],
         isClosed: false,
         showLabels: true,
+        fillColor: "#38bdf8",
         cssWidth: 0,
         cssHeight: 0,
         plot: {
@@ -426,9 +413,6 @@
         }
       };
 
-      /**
-       * 네 개의 범위 입력값을 검사합니다.
-       */
       function validateRange() {
         const raw = [
           xMinInput.value.trim(),
@@ -454,31 +438,19 @@
         const [xMin, xMax, yMin, yMax] = values;
 
         if (xMin >= xMax || yMin >= yMax) {
-          return {
-            valid: false,
-            message: "최솟값은 최댓값보다 작아야 합니다."
-          };
+          return { valid: false, message: "최솟값은 최댓값보다 작아야 합니다." };
         }
 
-        if (
-          xMax - xMin > MAX_RANGE_SIZE ||
-          yMax - yMin > MAX_RANGE_SIZE
-        ) {
+        if (xMax - xMin > MAX_RANGE_SIZE || yMax - yMin > MAX_RANGE_SIZE) {
           return {
             valid: false,
             message: "각 축의 범위 차이는 최대 100까지 가능합니다."
           };
         }
 
-        return {
-          valid: true,
-          range: { xMin, xMax, yMin, yMax }
-        };
+        return { valid: true, range: { xMin, xMax, yMin, yMax } };
       }
 
-      /**
-       * 입력한 범위로 새 좌표평면을 생성하고 기존 점을 초기화합니다.
-       */
       function createCoordinatePlane() {
         const result = validateRange();
 
@@ -499,10 +471,6 @@
         pointInput.focus();
       }
 
-      /**
-       * 좌표 한 칸의 가로와 세로 크기가 같도록 캔버스를 조절합니다.
-       * 범위가 넓으면 캔버스를 줄이지 않고 스크롤 영역을 사용합니다.
-       */
       function resizeCanvas() {
         if (!state.isCreated) {
           const width = Math.max(320, canvasWrap.clientWidth - 24);
@@ -545,9 +513,6 @@
         drawBoard();
       }
 
-      /**
-       * 고해상도 화면에서도 선과 문자가 선명하도록 DPR을 반영합니다.
-       */
       function configureCanvas(cssWidth, cssHeight) {
         const dpr = window.devicePixelRatio || 1;
 
@@ -578,9 +543,6 @@
         );
       }
 
-      /**
-       * 수학 좌표를 캔버스 좌표로 변환합니다.
-       */
       function coordinateToCanvas(x, y) {
         return {
           x: state.plot.left + (x - state.range.xMin) * state.plot.unit,
@@ -588,23 +550,13 @@
         };
       }
 
-      /**
-       * 캔버스 좌표를 수학 좌표로 역변환합니다.
-       */
       function canvasToCoordinate(canvasX, canvasY) {
         return {
-          x:
-            state.range.xMin +
-            (canvasX - state.plot.left) / state.plot.unit,
-          y:
-            state.range.yMax -
-            (canvasY - state.plot.top) / state.plot.unit
+          x: state.range.xMin + (canvasX - state.plot.left) / state.plot.unit,
+          y: state.range.yMax - (canvasY - state.plot.top) / state.plot.unit
         };
       }
 
-      /**
-       * 좌표평면, 선, 점, 라벨을 최신 상태로 모두 다시 그립니다.
-       */
       function drawBoard() {
         if (!state.isCreated) {
           drawEmptyCanvas();
@@ -627,8 +579,9 @@
 
         drawGrid();
         drawAxes();
+        drawFilledPolygon();
         drawLines();
-        drawPoints(false);
+        drawPoints();
 
         ctx.restore();
 
@@ -636,10 +589,6 @@
         drawPointLabels();
       }
 
-      /**
-       * 모든 정수 좌표에 1단위 간격의 격자선을 그립니다.
-       * 범위나 화면 크기에 따라 간격을 변경하거나 생략하지 않습니다.
-       */
       function drawGrid() {
         ctx.strokeStyle = "#dce3ea";
         ctx.lineWidth = 1;
@@ -669,9 +618,6 @@
         }
       }
 
-      /**
-       * 0이 각 축 범위에 포함되는 경우에만 x축 또는 y축을 그립니다.
-       */
       function drawAxes() {
         const right = state.plot.left + state.plot.width;
         const bottom = state.plot.top + state.plot.height;
@@ -714,16 +660,11 @@
         }
       }
 
-      /**
-       * 모든 정수 눈금 숫자를 1단위 간격으로 표시합니다.
-       */
       function drawAxisLabels() {
         const right = state.plot.left + state.plot.width;
         const bottom = state.plot.top + state.plot.height;
-        const hasXAxis =
-          state.range.yMin <= 0 && state.range.yMax >= 0;
-        const hasYAxis =
-          state.range.xMin <= 0 && state.range.xMax >= 0;
+        const hasXAxis = state.range.yMin <= 0 && state.range.yMax >= 0;
+        const hasYAxis = state.range.xMin <= 0 && state.range.xMax >= 0;
 
         const xLabelY = hasXAxis
           ? coordinateToCanvas(state.range.xMin, 0).y
@@ -733,10 +674,7 @@
           ? coordinateToCanvas(0, state.range.yMin).x
           : state.plot.left;
 
-        const fontSize = Math.max(
-          8,
-          Math.min(12, state.plot.unit * 0.38)
-        );
+        const fontSize = Math.max(8, Math.min(12, state.plot.unit * 0.38));
 
         ctx.fillStyle = "#111827";
         ctx.font = `${fontSize}px Arial`;
@@ -750,7 +688,6 @@
           x += GRID_STEP
         ) {
           if (x === 0) continue;
-
           const p = coordinateToCanvas(x, state.range.yMin);
           ctx.fillText(String(x), p.x, xLabelY + 7);
         }
@@ -764,14 +701,12 @@
           y += GRID_STEP
         ) {
           if (y === 0) continue;
-
           const p = coordinateToCanvas(state.range.xMin, y);
           ctx.fillText(String(y), yLabelX - 7, p.y);
         }
 
         if (hasXAxis && hasYAxis) {
           const origin = coordinateToCanvas(0, 0);
-
           ctx.font = '15px "Times New Roman"';
           ctx.textAlign = "right";
           ctx.textBaseline = "top";
@@ -796,9 +731,60 @@
         }
       }
 
-      /**
-       * 입력한 점을 순서대로 파란 선분으로 연결합니다.
-       */
+      function pointsMatch(a, b) {
+        return (
+          Math.abs(a.x - b.x) < EPSILON &&
+          Math.abs(a.y - b.y) < EPSILON
+        );
+      }
+
+      function isAutoClosed() {
+        if (state.points.length < 4) return false;
+        return pointsMatch(state.points[0], state.points[state.points.length - 1]);
+      }
+
+      function isPolygonClosed() {
+        return state.isClosed || isAutoClosed();
+      }
+
+      function getPolygonPoints() {
+        if (!isPolygonClosed()) return [];
+
+        if (isAutoClosed()) {
+          return state.points.slice(0, -1);
+        }
+
+        return state.points.slice();
+      }
+
+      function drawFilledPolygon() {
+        const polygonPoints = getPolygonPoints();
+        if (polygonPoints.length < 3) return;
+
+        const first = coordinateToCanvas(
+          polygonPoints[0].x,
+          polygonPoints[0].y
+        );
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(first.x, first.y);
+
+        for (let index = 1; index < polygonPoints.length; index++) {
+          const p = coordinateToCanvas(
+            polygonPoints[index].x,
+            polygonPoints[index].y
+          );
+          ctx.lineTo(p.x, p.y);
+        }
+
+        ctx.closePath();
+        ctx.globalAlpha = 0.28;
+        ctx.fillStyle = state.fillColor;
+        ctx.fill("evenodd");
+        ctx.restore();
+      }
+
       function drawLines() {
         if (state.points.length < 2) return;
 
@@ -822,17 +808,14 @@
           ctx.lineTo(p.x, p.y);
         }
 
-        if (state.isClosed && state.points.length >= 3) {
+        if (state.isClosed && !isAutoClosed() && state.points.length >= 3) {
           ctx.lineTo(first.x, first.y);
         }
 
         ctx.stroke();
       }
 
-      /**
-       * 점을 그리고 마지막 점에만 빨간 강조 테두리를 표시합니다.
-       */
-      function drawPoints(includeLabels = true) {
+      function drawPoints() {
         state.points.forEach((point, index) => {
           const p = coordinateToCanvas(point.x, point.y);
           const isLast = index === state.points.length - 1;
@@ -849,40 +832,26 @@
             ctx.lineWidth = 2;
             ctx.stroke();
           }
-
-          if (includeLabels && state.showLabels) {
-            drawSinglePointLabel(point, p);
-          }
         });
       }
 
-      /**
-       * clipping 영역 밖에서도 라벨이 잘리지 않도록 라벨을 별도로 그립니다.
-       */
       function drawPointLabels() {
         if (!state.showLabels) return;
 
         state.points.forEach(point => {
           const p = coordinateToCanvas(point.x, point.y);
-          drawSinglePointLabel(point, p);
+          ctx.font = "13px Arial";
+          ctx.fillStyle = "#111827";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "bottom";
+          ctx.fillText(
+            `${point.name}(${formatNumber(point.x)}, ${formatNumber(point.y)})`,
+            p.x + 8,
+            p.y - 7
+          );
         });
       }
 
-      function drawSinglePointLabel(point, canvasPoint) {
-        ctx.font = "13px Arial";
-        ctx.fillStyle = "#111827";
-        ctx.textAlign = "left";
-        ctx.textBaseline = "bottom";
-        ctx.fillText(
-          `${point.name}(${formatNumber(point.x)}, ${formatNumber(point.y)})`,
-          canvasPoint.x + 8,
-          canvasPoint.y - 7
-        );
-      }
-
-      /**
-       * "(x,y)" 입력을 검사하고 숫자 좌표로 변환합니다.
-       */
       function parseCoordinate(value) {
         const pattern =
           /^\(\s*(-?(?:\d+(?:\.\d*)?|\.\d+))\s*,\s*(-?(?:\d+(?:\.\d*)?|\.\d+))\s*\)$/;
@@ -909,19 +878,12 @@
         return { valid: true, x, y };
       }
 
-      /**
-       * 점 이름을 A~Z, A1~Z1, A2~ 형태로 생성합니다.
-       */
       function getPointName(index) {
         const letter = String.fromCharCode(65 + (index % 26));
         const cycle = Math.floor(index / 26);
-
         return cycle === 0 ? letter : `${letter}${cycle}`;
       }
 
-      /**
-       * 입력값을 검사하고 점 배열에 새 점을 추가합니다.
-       */
       function addPoint() {
         if (!state.isCreated) {
           showMessage("먼저 좌표평면을 생성하세요.", "error");
@@ -947,7 +909,6 @@
         }
 
         const name = getPointName(state.points.length);
-
         state.points.push({ x, y, name });
         state.isClosed = false;
 
@@ -955,18 +916,22 @@
         updatePointList();
         updateButtons();
 
-        showMessage(
-          `점 ${name}(${formatNumber(x)}, ${formatNumber(y)})를 추가했습니다.`,
-          "success"
-        );
+        if (isAutoClosed()) {
+          showMessage(
+            `점 ${name}(${formatNumber(x)}, ${formatNumber(y)})를 추가하여 폐곡선이 완성되었습니다. 내부를 색칠했습니다.`,
+            "success"
+          );
+        } else {
+          showMessage(
+            `점 ${name}(${formatNumber(x)}, ${formatNumber(y)})를 추가했습니다.`,
+            "success"
+          );
+        }
 
         pointInput.value = "";
         pointInput.focus();
       }
 
-      /**
-       * 마지막 점과 해당 점에 연결된 마지막 선분을 삭제합니다.
-       */
       function undoLastPoint() {
         if (!state.points.length) return;
 
@@ -980,9 +945,6 @@
         pointInput.focus();
       }
 
-      /**
-       * 확인 후 모든 점과 선을 삭제하고 좌표평면은 유지합니다.
-       */
       function clearAllPoints() {
         if (!state.points.length) return;
 
@@ -1002,21 +964,15 @@
         pointInput.focus();
       }
 
-      /**
-       * 점이 세 개 이상이면 마지막 점과 첫 번째 점을 연결합니다.
-       */
       function closeShape() {
-        if (state.points.length < 3 || state.isClosed) return;
+        if (state.points.length < 3 || isPolygonClosed()) return;
 
         state.isClosed = true;
         drawBoard();
         updateButtons();
-        showMessage("도형을 닫았습니다.", "success");
+        showMessage("도형을 닫고 내부를 색칠했습니다.", "success");
       }
 
-      /**
-       * 입력 순서대로 점 목록을 갱신합니다.
-       */
       function updatePointList() {
         pointList.innerHTML = "";
         pointList.hidden = state.points.length === 0;
@@ -1030,9 +986,6 @@
         });
       }
 
-      /**
-       * 현재 상태에 따라 각 버튼의 활성화 여부를 변경합니다.
-       */
       function updateButtons() {
         addButton.disabled = !state.isCreated;
         saveButton.disabled = !state.isCreated;
@@ -1041,12 +994,9 @@
         closeButton.disabled =
           !state.isCreated ||
           state.points.length < 3 ||
-          state.isClosed;
+          isPolygonClosed();
       }
 
-      /**
-       * 안내 또는 오류 메시지를 표시합니다.
-       */
       function showMessage(text, type = "info") {
         messageBox.textContent = text;
         messageBox.className = "message";
@@ -1058,9 +1008,6 @@
         }
       }
 
-      /**
-       * 현재 캔버스 그림을 실제 PNG 파일로 다운로드합니다.
-       */
       function saveAsImage() {
         if (!state.isCreated) return;
 
@@ -1105,13 +1052,16 @@
       saveButton.addEventListener("click", saveAsImage);
 
       pointInput.addEventListener("keydown", event => {
-        if (event.key === "Enter") {
-          addPoint();
-        }
+        if (event.key === "Enter") addPoint();
       });
 
       labelToggle.addEventListener("change", () => {
         state.showLabels = labelToggle.checked;
+        drawBoard();
+      });
+
+      fillColorInput.addEventListener("input", () => {
+        state.fillColor = fillColorInput.value;
         drawBoard();
       });
 
